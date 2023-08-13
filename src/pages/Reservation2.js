@@ -439,7 +439,7 @@ function Reservation2(props) {
         active={btnState}
         onClick={handleClick}
       />
-        {/* <input type="button" value="요청하기" onClick={handleClick} /> */}
+        <input type="button" value="요청하기" onClick={handleClick} />
       </div>
     </div>
   );
