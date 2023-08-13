@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import BackTitleHeader from "../../components/BackTitleHeader";
 import axios from "axios";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Slider from "react-slick";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
@@ -16,6 +16,7 @@ import { DayPicker } from "react-day-picker";
 import FooterPS from "../../components/FooterPS";
 
 const PSView = () => {
+  const navigate = useNavigate();
   const settings = {
     dots: true,
     infinite: false,
@@ -51,6 +52,19 @@ const PSView = () => {
   const [profileTemp, setProfileTemp] = useState("");
   const [profileMsg, setProfileMsg] = useState("");
 
+  //돌봄 환경
+  const [gender, setGender] = useState("");
+  const [age, setAge] = useState("");
+  const [house, setHouse] = useState("");
+
+  const [reviewScore, setReviewScore] = useState(0); //리뷰 총점
+  const [reviewDelecacy, setReviewDelecacy] = useState(0); //리뷰 섬세함
+  const [reviewKind, setReviewKind] = useState(0); //리뷰 친절도
+  const [reviewTime, setReviewTime] = useState(0); //리뷰 시간
+
+  //오늘 날짜 알아오기 - 초기화를 위해
+  let today = new Date();
+  today = format(today, "y-MM-dd");
   useEffect(() => {
     axios
       .get("/dolbom/detail", {
@@ -71,10 +85,73 @@ const PSView = () => {
         setProfileImg(!!res.data[0].userImg ? res.data[0].userImg : null);
 
         //펫시터 정보
-        setProfileAddress(res.data[0].userAddress); //주소
-        setProfileName(res.data[0].userName); //이름
+        let address_slice = res.data[0].userAddress;
+        //console.log("슬라이싱", address_slice.split(" "));
+        let address_slice_arr = address_slice.split(" ");
+        let add_str =
+          address_slice_arr[0] +
+          " " +
+          address_slice_arr[1] +
+          " " +
+          (!!address_slice_arr[2] ? address_slice_arr[2] : "");
+
+        let user_name =
+          res.data[0].userName.substr(0, 1) +
+          "○" +
+          res.data[0].userName.substr(-1, 1);
+
+        setProfileAddress(add_str); //주소
+        setProfileName(user_name); //이름
         setProfileTemp(res.data[0].userTemp); //온도
         setProfileMsg(res.data[0].petsitter["sitterMsg"]); //메세지
+
+        setGender(res.data[0].sitterSex); //성별
+        setAge(Math.floor(res.data[0].sitterAge / 10) * 10); //나이
+        setHouse(res.data[0].sitterHousetype); //거주지 형태
+
+        setReviewScore(
+          isNaN(res.data[0].reviewScore) ? 0 : res.data[0].reviewScore
+        ); //점수
+
+        setReviewKind(
+          isNaN(res.data[0].reviewKind * 20) ? 0 : res.data[0].reviewKind * 20
+        ); //친절도
+        setReviewTime(
+          isNaN(res.data[0].reviewTime * 20) ? 0 : res.data[0].reviewTime * 20
+        ); //시간약속
+        setReviewDelecacy(
+          isNaN(res.data[0].reviewDelecacy * 20)
+            ? 0
+            : res.data[0].reviewDelecacy * 20
+        ); //섬세함
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+
+    axios
+      .get("/sitter/getSchedule", {
+        params: {
+          sitterId: params.userId,
+          scheduleDay: today,
+        },
+      })
+      .then((res) => {
+        console.log("날자", res.data);
+        //케어타입이 산책인지,날짜인지 구분
+        let careTypeFilltering = [];
+        for (let i = 0; i < res.data.length; i++) {
+          if (res.data[i]["dolbomOption"] === caretype) {
+            console.log("응애", res.data[i]["Hour"]);
+
+            let baby = res.data[i]["Hour"];
+            if (baby.dolbomStatus === 0) {
+              careTypeFilltering.push(baby.Hour2);
+            }
+          }
+        }
+        console.log("careTypeFilltering", careTypeFilltering);
+        setScheduleData(careTypeFilltering);
       })
       .catch((err) => {
         console.log(err);
@@ -86,13 +163,56 @@ const PSView = () => {
   const handleChange = (e) => {
     console.log(e.target.value);
     setCaretype(e.target.value);
+
+    let sitterdate;
+
+    if (!selectedDay) {
+      sitterdate = today;
+    } else {
+      sitterdate = format(selectedDay, "y-MM-dd");
+    }
+
+    console.log("케어타입", caretype);
+    axios
+      .get("/sitter/getSchedule", {
+        params: {
+          sitterId: params.userId,
+          scheduleDay: sitterdate,
+        },
+      })
+      .then((res) => {
+        console.log("날자", res.data);
+        //케어타입이 산책인지,날짜인지 구분
+        let careTypeFilltering = [];
+        for (let i = 0; i < res.data.length; i++) {
+          if (res.data[i]["dolbomOption"] === e.target.value) {
+            console.log("응애", res.data[i]["Hour"]);
+
+            let baby = res.data[i]["Hour"];
+            if (baby.dolbomStatus === 0) {
+              careTypeFilltering.push(baby.Hour2);
+            }
+          }
+        }
+        console.log("careTypeFilltering", careTypeFilltering);
+        setScheduleData(careTypeFilltering);
+      })
+      .catch((err) => {
+        console.log(err);
+      });
   };
 
   ///////////////////////////////날짜///////////////////////////////
   const [selectedDay, setSelectedDay] = useState();
-  const [scheduleData, setScheduleData] = useState([]);
+  const [scheduleData, setScheduleData] = useState([
+    { Hour2: "10:00", dolbomStatus: 0 },
+  ]);
 
   const handleSelect = (e) => {
+    if (!e) {
+      return;
+    }
+    console.log("잉잉", e);
     setSelectedDay(e);
     let sitterdate = format(e, "y-MM-dd");
 
@@ -110,33 +230,26 @@ const PSView = () => {
         let careTypeFilltering = [];
         for (let i = 0; i < res.data.length; i++) {
           if (res.data[i]["dolbomOption"] === caretype) {
-            //console.log(res.data[i]["Hour"]);
-            careTypeFilltering.push(res.data[i]["Hour"]);
+            console.log("응애", res.data[i]["Hour"]);
+
+            let baby = res.data[i]["Hour"];
+            if (baby.dolbomStatus === 0) {
+              careTypeFilltering.push(baby.Hour2);
+            }
           }
         }
-        console.log(careTypeFilltering);
-
-        //타임 테이블 가져오기
-        var timetable = document.querySelectorAll(
-          "#timetable input[type='checkbox']"
-        );
-
-        console.log("timetable", timetable);
-
-        for (let i = 0; i < timetable.length; i++) {}
+        console.log("careTypeFilltering", careTypeFilltering);
+        setScheduleData(careTypeFilltering);
       })
       .catch((err) => {
         console.log(err);
       });
   };
 
-  let st = 2;
+  // useEffect(() => {
+  //   console.log("scheduleData:", scheduleData);
+  // }, [scheduleData]);
 
-  const footer = selectedDay ? (
-    <p>You selected {format(selectedDay, "PPP")}.</p>
-  ) : (
-    <p>Please pick a day.</p>
-  );
   //////////////////////////////////////////////////////////////////
   return (
     <div id={style.aa}>
@@ -195,9 +308,9 @@ const PSView = () => {
         <div className={style.box}>
           <p className={style.subtitle}>돌봄 환경</p>
           <div className={style.tag}>
-            <input type="button" value="남" />
-            <input type="button" value="30+" />
-            <input type="button" value="마당있는 집" />
+            <input type="button" value={gender} />
+            <input type="button" value={`${age}+`} />
+            <input type="button" value={house} />
           </div>
         </div>
         <hr />
@@ -221,21 +334,24 @@ const PSView = () => {
           <div className={style.subtitle} style={{ marginBottom: "10px" }}>
             <span style={{ marginRight: "20px" }}>리뷰</span>
             <StarRatings
-              rating={4}
+              rating={reviewScore}
               starDimension="25px"
               starSpacing="1px"
               starRatedColor="#FDC90E"
             />
           </div>
           <div className={style.progress}>
-            <ProgressBar completed={70} customLabel="친절도" />
-            <ProgressBar completed={80} customLabel="시간약속" />
-            <ProgressBar completed={50} customLabel="섬세함" />
+            <ProgressBar completed={reviewKind} customLabel="친절도" />
+            <ProgressBar completed={reviewTime} customLabel="시간약속" />
+            <ProgressBar completed={reviewDelecacy} customLabel="섬세함" />
           </div>
 
-          <div className={style.box}>
-            <div id={style.reviewall}>{`리뷰 전체보기 >`}</div>
-          </div>
+          <div
+            id={style.reviewall}
+            onClick={() => {
+              navigate(`/sitterProfile/${params.userId}/review`);
+            }}
+          >{`리뷰 전체보기 >`}</div>
           <div className={`${style.box} ${style.reviewBox}`}>
             <div className={style.reviewCard}>
               <p id={style.reviewtitleName}>김0민</p>
@@ -295,7 +411,9 @@ const PSView = () => {
                 id="06:00"
                 value="06:00"
                 disabled
-                className={`${st === 1 ? style.ok : style.stay}`}
+                className={`${
+                  scheduleData.includes("6:00") ? style.yes : style.no
+                }`}
               />
               <label htmlFor="06:00">06:00</label>
 
@@ -304,61 +422,199 @@ const PSView = () => {
                 id="07:00"
                 value="07:00"
                 disabled
-                className={`${st === 1 ? style.ok : style.stay}`}
+                className={`${
+                  scheduleData.includes("7:00") ? style.yes : style.no
+                }`}
               />
               <label htmlFor="07:00">07:00</label>
 
-              <input type="checkbox" id="08:00" value="08:00" disabled />
+              <input
+                type="checkbox"
+                id="08:00"
+                value="08:00"
+                disabled
+                className={`${
+                  scheduleData.includes("8:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="08:00">08:00</label>
 
-              <input type="checkbox" id="09:00" value="09:00" disabled />
-              <label htmlFor="09:00">09:00</label>
+              <input
+                type="checkbox"
+                id="09:00"
+                value="09:00"
+                disabled
+                className={`${
+                  scheduleData.includes("9:00") ? style.yes : style.no
+                }`}
+              />
+              <label htmlFor="09:00">9:00</label>
 
-              <input type="checkbox" id="10:00" value="10:00" disabled />
+              <input
+                type="checkbox"
+                id="10:00"
+                value="10:00"
+                disabled
+                className={`${
+                  scheduleData.includes("10:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="10:00">10:00</label>
 
-              <input type="checkbox" id="11:00" value="11:00" disabled />
+              <input
+                type="checkbox"
+                id="11:00"
+                value="11:00"
+                disabled
+                className={`${
+                  scheduleData.includes("11:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="11:00">11:00</label>
 
-              <input type="checkbox" id="12:00" value="12:00" disabled />
+              <input
+                type="checkbox"
+                id="12:00"
+                value="12:00"
+                disabled
+                className={`${
+                  scheduleData.includes("12:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="12:00">12:00</label>
             </div>
             <p className={style.subtitle3}>오후</p>
             <div style={{ marginLeft: "10px", marginRight: "10px" }}>
-              <input type="checkbox" id="13:00" value="13:00" disabled />
+              <input
+                type="checkbox"
+                id="13:00"
+                value="13:00"
+                disabled
+                className={`${
+                  scheduleData.includes("13:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="13:00">13:00</label>
 
-              <input type="checkbox" id="14:00" value="14:00" disabled />
+              <input
+                type="checkbox"
+                id="14:00"
+                value="14:00"
+                disabled
+                className={`${
+                  scheduleData.includes("14:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="14:00">14:00</label>
 
-              <input type="checkbox" id="15:00" value="15:00" disabled />
+              <input
+                type="checkbox"
+                id="15:00"
+                value="15:00"
+                disabled
+                className={`${
+                  scheduleData.includes("15:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="15:00">15:00</label>
 
-              <input type="checkbox" id="16:00" value="16:00" disabled />
+              <input
+                type="checkbox"
+                id="16:00"
+                value="16:00"
+                disabled
+                className={`${
+                  scheduleData.includes("16:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="16:00">16:00</label>
 
-              <input type="checkbox" id="17:00" value="17:00" disabled />
+              <input
+                type="checkbox"
+                id="17:00"
+                value="17:00"
+                disabled
+                className={`${
+                  scheduleData.includes("17:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="17:00">17:00</label>
 
-              <input type="checkbox" id="18:00" value="18:00" disabled />
+              <input
+                type="checkbox"
+                id="18:00"
+                value="18:00"
+                disabled
+                className={`${
+                  scheduleData.includes("18:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="18:00">18:00</label>
 
-              <input type="checkbox" id="19:00" value="19:00" disabled />
+              <input
+                type="checkbox"
+                id="19:00"
+                value="19:00"
+                disabled
+                className={`${
+                  scheduleData.includes("19:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="19:00">19:00</label>
 
-              <input type="checkbox" id="20:00" value="20:00" disabled />
+              <input
+                type="checkbox"
+                id="20:00"
+                value="20:00"
+                disabled
+                className={`${
+                  scheduleData.includes("20:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="20:00">20:00</label>
 
-              <input type="checkbox" id="21:00" value="21:00" disabled />
+              <input
+                type="checkbox"
+                id="21:00"
+                value="21:00"
+                disabled
+                className={`${
+                  scheduleData.includes("21:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="21:00">21:00</label>
 
-              <input type="checkbox" id="22:00" value="22:00" disabled />
+              <input
+                type="checkbox"
+                id="22:00"
+                value="22:00"
+                disabled
+                className={`${
+                  scheduleData.includes("22:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="22:00">22:00</label>
 
-              <input type="checkbox" id="23:00" value="23:00" disabled />
+              <input
+                type="checkbox"
+                id="23:00"
+                value="23:00"
+                disabled
+                className={`${
+                  scheduleData.includes("23:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="23:00">23:00</label>
 
-              <input type="checkbox" id="24:00" value="24:00" disabled />
+              <input
+                type="checkbox"
+                id="24:00"
+                value="24:00"
+                disabled
+                className={`${
+                  scheduleData.includes("24:00") ? style.yes : style.no
+                }`}
+              />
               <label htmlFor="24:00">24:00</label>
             </div>
           </div>
@@ -373,7 +629,7 @@ const PSView = () => {
         </div>
       </div>
       {/* 바텀 */}
-      <FooterPS userId={params.userId} />
+      <FooterPS sitter={profileName} sitterId={params.userId} />
     </div>
   );
 };

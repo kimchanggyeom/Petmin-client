@@ -1,11 +1,13 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import BackTitleHeader from "../../components/BackTitleHeader";
 import styled from "styled-components";
 import InsuranceModal from "./InsuranceModal";
-import { useLocation, useNavigate } from "react-router-dom";
+import style from "../../styles/PSView.module.css";
+import StarRatings from "react-star-ratings";
+import ProgressBar from "@ramonak/react-progress-bar";
+import { useLocation, useParams } from "react-router-dom";
 import axios from "axios";
 
-// HOC
 const withCardStyling = (WrappedComponent) => {
   const StyledCard = styled(WrappedComponent)`
     width: 360px;
@@ -44,33 +46,15 @@ const withTextGroupStyling = (WrappedComponent) => {
 const StyledCardDiv = withCardStyling(styled.div``);
 const StyledTextGroup = withTextGroupStyling(styled.div``);
 
-const Assurance = () => {
+const Review = () => {
   const [isModalOpen, setIsModalOpen] = useState(false); // State for modal visibility
-  const { state } = useLocation();
-  console.log(state);
-  const nav = useNavigate();
+
   const handleModalOpen = () => {
     setIsModalOpen(true);
-    axios({
-      url: "/dolbom/assurance",
-      params: {
-        dolbomNo: state,
-        assuranceName: "신한 종합형 펫 플랜(실버)",
-      },
-      method: "post",
-    })
-      .then((res) => {
-        console.log(res.data);
-        //nav();보험 페이지로 이동
-      })
-      .catch((error) => {
-        console.log(error);
-      });
   };
 
   const handleModalClose = () => {
     setIsModalOpen(false);
-    nav("/check");
   };
 
   const CardContainer = styled.div`
@@ -84,8 +68,8 @@ const Assurance = () => {
   const Title = styled.p`
     color: #000;
     font-family: Inter;
-    font-size: 17px;
-    font-weight: 400;
+    font-size: 20px;
+    font-weight: 700;
     margin-bottom: 5px;
   `;
 
@@ -100,14 +84,14 @@ const Assurance = () => {
   const SmallText = styled.div`
     color: #000;
     font-family: Inter;
-    font-size: 12px;
+    font-size: 20px;
     font-weight: 400;
   `;
 
   const LargeText = styled.p`
     color: #f66;
     font-family: Inter;
-    font-size: 40px;
+    font-size: 20px;
     font-weight: 600;
     margin: 10px 0;
     text-align: right;
@@ -144,34 +128,65 @@ const Assurance = () => {
     }
   `;
 
-  const numberOfCards = 2;
-
   const SmallCard = ({ title, subTitle }) => (
     <StyledTextGroup>
       <SmallText>{title}</SmallText>
       <SmallText style={{ color: "#f66" }}>{subTitle}</SmallText>
     </StyledTextGroup>
   );
+  const location = useLocation();
+
+  async function getMakeReviewList() {
+    const url = `/dolbom/reviewList?sitterId=${
+      location.pathname.split("/")[2]
+    }`;
+    axios
+      .get(url, {
+        headers: {
+          "Content-Type": `application/json`,
+        },
+      })
+      .then((res) => {
+        console.log(res.data);
+        setReview(res.data);
+      })
+      .catch((ex) => {
+        console.log("requset fail : " + ex);
+      });
+  }
+
+  const [review, setReview] = useState();
+  useEffect(() => {
+    getMakeReviewList();
+  }, []);
 
   return (
     <>
-      <BackTitleHeader title="보험 확인" />
+      <BackTitleHeader title="리뷰 작성" />
       <CardContainer>
-        {Array.from({ length: numberOfCards }).map((_, index) => (
+        {review?.map((val, index) => (
           <StyledCardDiv key={index}>
-            {/* 카드 내용의 나머지 부분 */}
             <StyledTextGroup>
-              <Title>신한 종합형 펫 플랜(실버)</Title>
-              <SubTitle>기간형 보험</SubTitle>
+              <Title>🐶 {val.userName}</Title>
             </StyledTextGroup>
-            <LargeText>시간당 90원</LargeText>
-            <SmallCard title="할인률" subTitle="사고/질병 당 20%" />
-            <SmallCard title="최대 지원금" subTitle="사고/질병 당 50만원" />
-            <BoxDivContainer>
-              <BoxBtn>자세히 보기</BoxBtn>
-              <BoxBtn onClick={handleModalOpen}>가입하기</BoxBtn>
-            </BoxDivContainer>
-            {isModalOpen && <InsuranceModal onClose={handleModalClose} />}
+            <div className={style.box}>
+              <SmallCard title="친절도" subTitle={`${val.reviewKind}/5`} />
+              <SmallCard title="시간약속" subTitle={`${val.reviewTime}/5`} />
+              <SmallCard title="섬세함" subTitle={`${val.reviewDelecacy}/5`} />
+              <StyledTextGroup>
+                <LargeText>받은 돌봄 후기</LargeText>
+              </StyledTextGroup>
+              <div
+                style={{
+                  backgroundColor: "#f9f9f9",
+                  padding: "15px",
+                  border: "1px solid #ddd",
+                  borderRadius: "10px",
+                }}
+              >
+                {val.reviewMsg}
+              </div>
+            </div>
           </StyledCardDiv>
         ))}
       </CardContainer>
@@ -179,4 +194,4 @@ const Assurance = () => {
   );
 };
 
-export default Assurance;
+export default Review;
